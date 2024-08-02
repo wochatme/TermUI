@@ -8,9 +8,12 @@
 #include <atldlgs.h>
 #include <atlctrlw.h>
 #include <atlscrl.h>
+#include <atlgdi.h>
 
 #include "resource.h"
 #include "TermUI.h"
+
+#include "XTabCtl.h"
 
 #include "ViewTab.h"
 #include "ViewTxt.h"

@@ -38,6 +38,7 @@ extern CAppModule _Module;
 #include <d2d1.h>
 #include <d2d1_1.h>
 #include <dwrite.h>
+#include <dwmapi.h>
 
 #include "Sci_Position.h"
 #include "scintilla.h"
@@ -46,6 +47,7 @@ extern CAppModule _Module;
 #pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "Imm32.lib")
+#pragma comment(lib, "Dwmapi.lib")
 
 #if defined _M_IX86
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
