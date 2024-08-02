@@ -12,14 +12,15 @@ class CMainFrame :
 public:
 	DECLARE_FRAME_WND_CLASS(NULL, IDR_MAINFRAME)
 
-	CView m_view;
+	CTABView m_viewTAB;
+	CTXTView m_viewTXT;
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg)
 	{
 		if(CFrameWindowImpl<CMainFrame>::PreTranslateMessage(pMsg))
 			return TRUE;
 
-		return m_view.PreTranslateMessage(pMsg);
+		return FALSE; // m_viewTAB.PreTranslateMessage(pMsg);
 	}
 
 	virtual BOOL OnIdle()
@@ -32,6 +33,7 @@ public:
 	END_UPDATE_UI_MAP()
 
 	BEGIN_MSG_MAP(CMainFrame)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
@@ -46,8 +48,8 @@ public:
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
-		m_hWndClient = m_view.Create(m_hWnd, rcDefault, NULL, 
-			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL);
+		m_viewTAB.Create(m_hWnd, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
+		m_viewTXT.Create(m_hWnd, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL);
 
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
@@ -68,6 +70,23 @@ public:
 
 		bHandled = FALSE;
 		return 1;
+	}
+
+	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
+	{
+		RECT rect = {};
+		GetClientRect(&rect);
+
+		// resize client window
+		::SetWindowPos(m_viewTAB.m_hWnd, NULL, rect.left, rect.top,
+			rect.right - rect.left, rect.top + TAB_WINDOW_HEIGHT,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		::SetWindowPos(m_viewTXT.m_hWnd, NULL, rect.left, rect.top + TAB_WINDOW_HEIGHT,
+			rect.right - rect.left, rect.bottom - (rect.top + TAB_WINDOW_HEIGHT),
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		return 0;
 	}
 
 	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)

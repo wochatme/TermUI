@@ -10,8 +10,11 @@
 #include <atlscrl.h>
 
 #include "resource.h"
+#include "TermUI.h"
 
-#include "View.h"
+#include "ViewTab.h"
+#include "ViewTxt.h"
+
 #include "WinDlg.h"
 #include "MainFrm.h"
 
@@ -40,11 +43,18 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 
 static int AppInit(HINSTANCE hInstance)
 {
-	return 0;
+	int ret = 0;
+	
+	if (Scintilla_RegisterClasses(hInstance) == 0)
+		ret = 1;
+
+	return ret;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
 {
+	Scintilla_ReleaseResources();
+
 	return 0;
 }
 

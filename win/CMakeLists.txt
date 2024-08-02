@@ -17,6 +17,12 @@ target_precompile_headers(${PROJECT_NAME} PRIVATE ${PRECOMPILE_HEADER_FILES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE 
 	${PROJECT_SOURCE_DIR} 
-	${PROJECT_SOURCE_DIR}/wtl 
+	${PROJECT_SOURCE_DIR}/wtl
+	${CMAKE_SOURCE_DIR}/scintilla
+	${CMAKE_SOURCE_DIR}/lexilla
 	)
+
+target_link_libraries(${PROJECT_NAME} scintilla)
+target_link_libraries(${PROJECT_NAME} lexilla)
+
 
