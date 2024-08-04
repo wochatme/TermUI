@@ -7,8 +7,9 @@
 class CTABView : public XTabCtrl<CTABView>
 {
 protected:
-	CBrush m_hbrBackground;
-	COLORREF m_clrTextInactiveTab, m_clrSelectedTab;
+	CBrush   m_hbrBackground;
+	COLORREF m_clrTextInactiveTab;
+	COLORREF m_clrSelectedTab;
 
 	signed char m_nFontSizeTextTopOffset = 0;
 	const signed char m_nMinWidthToDisplayText = 12;
@@ -18,9 +19,11 @@ public:
 
 	CTABView() :
 		m_clrTextInactiveTab(::GetSysColor(COLOR_GRAYTEXT)),
-		m_clrSelectedTab(::GetSysColor(COLOR_BTNFACE)),
+		m_clrSelectedTab(::GetSysColor(COLOR_BTNFACE))
+#if 0
 		m_nFontSizeTextTopOffset(0),
 		m_nMinWidthToDisplayText(12)
+#endif 
 	{}
 
 	BOOL PreTranslateMessage(MSG* pMsg)
@@ -37,14 +40,14 @@ public:
 
 	LRESULT OnSettingChange(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
-		DWORD dwStyle = this->GetStyle();
+		bool bResetFont = true;
+		DWORD dwStyle = GetStyle();
 
 		// Initialize/Reinitialize font
 		// Visual Studio.Net seems to use the "icon" font for the tabs
 		LOGFONT lfIcon = { 0 };
 		::SystemParametersInfo(SPI_GETICONTITLELOGFONT, sizeof(lfIcon), &lfIcon, 0);
-
-		bool bResetFont = true;
+		
 		if (!m_font.IsNull())
 		{
 			LOGFONT lf = { 0 };
@@ -60,10 +63,13 @@ public:
 
 		if (bResetFont)
 		{
-			if (!m_font.IsNull()) m_font.DeleteObject();
-			if (!m_fontSel.IsNull()) m_fontSel.DeleteObject();
+			HFONT font;
+			if (!m_font.IsNull()) 
+				m_font.DeleteObject();
+			if (!m_fontSel.IsNull()) 
+				m_fontSel.DeleteObject();
 
-			HFONT font = m_font.CreateFontIndirect(&lfIcon);
+			font = m_font.CreateFontIndirect(&lfIcon);
 			if (font == NULL)
 			{
 				m_font.Attach(AtlGetDefaultGuiFont());
@@ -228,7 +234,7 @@ public:
 			dc.SelectBrush(hOldBrush);
 
 			// Connect with the client area.
-			DWORD dwStyle = this->GetStyle();
+			DWORD dwStyle = GetStyle();
 			if (CTCS_BOTTOM == (dwStyle & CTCS_BOTTOM))
 			{
 				rc.bottom = rc.top + 3;
@@ -263,6 +269,7 @@ public:
 				{
 					dc.SelectPen(penHilight);
 				}
+
 				dc.LineTo(rc.right - 1, rc.bottom);
 				dc.SelectPen(pen3D);
 				dc.MoveTo(rc.right - 2, rc.bottom - 3);
@@ -271,7 +278,6 @@ public:
 				dc.LineTo(rc.left + 1, rc.top);
 				dc.SelectPen(penOld);
 			}
-
 		}
 	}
 
@@ -364,11 +370,7 @@ public:
 
 		// Draw division line on right, unless we're the item
 		// on the left of the selected tab
-		if (nItem + 1 == m_iCurSel)
-		{
-			// Item just left of selected tab
-		}
-		else
+		if (nItem + 1 != m_iCurSel)
 		{
 			WTL::CPen pen;
 			pen.CreatePen(PS_SOLID, 1, lpNMCustomDraw->clrBtnShadow);
@@ -382,6 +384,7 @@ public:
 			else
 			{
 				// Important!  Be sure and keep within "our" tab area horizontally
+				// Draw the separated vertical line between the Items
 				dc.MoveTo(rcTab.right - 1, rcTab.top + 2);
 				dc.LineTo(rcTab.right - 1, rcTab.bottom - 2);
 			}
@@ -715,7 +718,7 @@ public:
 		//  updated to account for the non-client areas
 		//  on top and bottom (and effected drawing code
 		//  would need to be updated).
-		DWORD dwStyle = this->GetStyle();
+		DWORD dwStyle = GetStyle();
 		if (CTCS_BOTTOM == (dwStyle & CTCS_BOTTOM))
 		{
 			// TODO: Update to actually specify the
@@ -994,7 +997,7 @@ public:
 		// When we scroll to fit, we ignore what's passed in for the
 		// tab item area rect, and use the client rect instead
 		RECT rcClient;
-		this->GetClientRect(&rcClient);
+		GetClientRect(&rcClient);
 
 		WTL::CClientDC dc(m_hWnd);
 		//HFONT hOldFont = dc.SelectFont(lpNMCustomDraw->hFontInactive);

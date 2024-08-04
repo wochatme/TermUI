@@ -41,9 +41,8 @@ public:
 	END_UPDATE_UI_MAP()
 
 	BEGIN_MSG_MAP(CMainFrame)
-		//MESSAGE_DWM_HANDLER()
 		MESSAGE_HANDLER(WM_SIZE, OnSize)
-		//MESSAGE_HANDLER(WM_NCCALCSIZE, OnNCCalcSize)
+		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
@@ -58,13 +57,19 @@ public:
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
-#if 10
 		m_viewTAB.Create(m_hWnd, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
-		m_viewTAB.ModifyStyle(0, CTCS_TOOLTIPS | CTCS_SCROLL | CTCS_CLOSEBUTTON);
+		m_viewTAB.ModifyStyle(0, 
+			CTCS_TOOLTIPS | 
+			CTCS_SCROLL | 
+			CTCS_CLOSEBUTTON | 
+			CTCS_DRAGREARRANGE | 
+			CTCS_BOLDSELECTEDTAB | CTCS_FLATEDGE
+		);
 		m_viewTAB.InsertItem(0, L"cmd.exe", -1, L"command line", true);
+		m_viewTAB.InsertItem(1, L"WSL", -1, L"Windows Subsystem for Linux", true);
+		m_viewTAB.InsertItem(2, L"PowerShell", -1, L"Windows Subsystem for Linux", true);
+		m_viewTAB.InsertItem(3, L"Ubuntu Linux", -1, L"Windows Subsystem for Linux", true);
 
-#endif 
-		//m_hWndClient = 
 		m_viewTXT.Create(m_hWnd, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL);
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
@@ -86,25 +91,19 @@ public:
 		bHandled = FALSE;
 		return 1;
 	}
-#if 0	
-	LRESULT OnNCCalcSize(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+
+	LRESULT OnNotify(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		bool client_area_needs_calculating = static_cast<bool>(wParam);
-		if (client_area_needs_calculating)
+		NMHDR* pnmhdr = (NMHDR*)lParam;
+		if (pnmhdr)
 		{
-			auto parameters = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
-			auto& requested_client_area = parameters->rgrc[0];
-			requested_client_area.right -= GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-			requested_client_area.left += GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-			requested_client_area.bottom -= GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-			
+			if (pnmhdr->code == NM_CLICK)
+				return 0;
 		}
-		else 
-			bHandled = FALSE;
+		bHandled = FALSE;
 		return 0;
 	}
-#endif 
-#if 10
+
 	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
 	{
 		RECT rect = {};
@@ -121,7 +120,7 @@ public:
 
 		return 0;
 	}
-#endif 
+
 	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		CAboutDlg dlg;

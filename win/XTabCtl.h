@@ -710,7 +710,7 @@ public:
 		{ 
 			{ 
 				this->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				CTCN_ACCEPTITEMDRAG 
 			}, 
 			m_iDragItemOriginal, 
@@ -740,7 +740,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				CTCN_CANCELITEMDRAG 
 			}, 
 			m_iDragItemOriginal, 
@@ -800,7 +800,7 @@ public:
 				{ 
 					{ 
 						pT->m_hWnd, 
-						this->GetDlgCtrlID(), 
+						0, 
 						CTCN_BEGINITEMDRAG 
 					}, 
 					index, 
@@ -1339,11 +1339,7 @@ public:
 
 			NMCTCITEM nmh = 
 			{ 
-				{ 
-					pT->m_hWnd, 
-					this->GetDlgCtrlID(), 
-					NM_CLICK 
-				}, 
+				{ pT->m_hWnd, 0, NM_CLICK }, 
 				nIndex, 
 				{
 					ptCursor.x, 
@@ -1381,7 +1377,6 @@ public:
 		T* pT = static_cast<T*>(this);
 		if (pT->m_hWnd == ::GetCapture())
 		{
-			T* pT = static_cast<T*>(this);
 			POINT ptCursor = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 			if (ectcDraggingItem == (m_dwState & ectcDraggingItem))
 			{
@@ -1402,7 +1397,7 @@ public:
 				{ 
 					{ 
 						pT->m_hWnd, 
-						this->GetDlgCtrlID(), 
+						0, 
 						CTCN_CLOSE 
 					}, 
 					m_iCurSel, 
@@ -1432,7 +1427,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				NM_DBLCLK 
 			}, 
 			nIndex, 
@@ -1466,7 +1461,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				NM_RCLICK 
 			}, 
 			nIndex, 
@@ -1508,7 +1503,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				NM_RDBLCLK 
 			}, 
 			nIndex, 
@@ -1542,7 +1537,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				CTCN_MCLICK 
 			}, 
 			nIndex, 
@@ -1582,7 +1577,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				CTCN_MDBLCLK 
 			}, 
 			nIndex, 
@@ -2167,7 +2162,7 @@ public:
 		ATLASSERT(nSave != 0);
 
 		T* pT = static_cast<T*>(this);
-		DWORD dwStyle = this->GetStyle();
+		DWORD dwStyle = pT->GetStyle();
 
 		// Make sure we don't paint outside client area (possible with paint dc)
 		RECT rcClient = { 0 };
@@ -2175,13 +2170,13 @@ public:
 		dc.IntersectClipRect(&rcClient);
 
 		// Prepare DC
-		dc.SelectFont(this->GetFont());
+		dc.SelectFont(pT->GetFont());
 
 		LRESULT lResCustom;
 		NMCTCCUSTOMDRAW nmc = { 0 };
 		LPNMCUSTOMDRAW pnmcd = &(nmc.nmcd);
 		pnmcd->hdr.hwndFrom = pT->m_hWnd;
-		pnmcd->hdr.idFrom = this->GetDlgCtrlID();
+		pnmcd->hdr.idFrom = 0; // this->GetDlgCtrlID();
 		pnmcd->hdr.code = NM_CUSTOMDRAW;
 		pnmcd->hdc = dc;
 		pnmcd->uItemState = 0;
@@ -2306,6 +2301,7 @@ public:
 			pnmcd->rc = rcClient;
 			::SendMessage(pT->GetParent(), WM_NOTIFY, pnmcd->hdr.idFrom, (LPARAM)&nmc);
 		}
+
 		dc.RestoreDC(nSave);
 	}
 
@@ -2321,7 +2317,6 @@ public:
 		if (CDRF_SKIPDEFAULT != (lResCustom & CDRF_SKIPDEFAULT))
 		{
 			// Do default item-drawing
-			T* pT = static_cast<T*>(this);
 			pT->DoItemPaint(lpNMCustomDraw);
 		}
 		if (CDRF_NOTIFYITEMDRAW == (lResCustom & CDRF_NOTIFYITEMDRAW) &&
@@ -2494,17 +2489,15 @@ public:
 		size_t nNewCount = m_Items.GetCount();
 
 		// Send notification
-		NMCTCITEM nmh = { 
-			{ 
-				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
-				CTCN_INSERTITEM 
-			}, 
+		NMCTCITEM nmh = 
+		{ 
+			{  pT->m_hWnd, 0, CTCN_INSERTITEM }, 
 			nItem, 
 			{-1,-1} 
 		};
 		
 		::SendMessage(pT->GetParent(), WM_NOTIFY, nmh.hdr.idFrom, (LPARAM)&nmh);
+		
 		// Select if first tab
 		if (nNewCount == 1)
 		{
@@ -2562,7 +2555,7 @@ public:
 
 		if (bNotify)
 		{
-			NMCTC2ITEMS nmh = { { pT->m_hWnd, this->GetDlgCtrlID(), CTCN_MOVEITEM }, (int)nFromIndex, (int)nToIndex, {-1,-1} };
+			NMCTC2ITEMS nmh = { { pT->m_hWnd, 0, CTCN_MOVEITEM }, (int)nFromIndex, (int)nToIndex, {-1,-1} };
 			::SendMessage(pT->GetParent(), WM_NOTIFY, nmh.hdr.idFrom, (LPARAM)&nmh);
 		}
 
@@ -2641,7 +2634,7 @@ public:
 			{ 
 				{ 
 					pT->m_hWnd, 
-					this->GetDlgCtrlID(), 
+					0, 
 					CTCN_DELETEITEM 
 				}, 
 				(int)nItem, 
@@ -2876,7 +2869,7 @@ public:
 		{ 
 			{ 
 				pT->m_hWnd, 
-				this->GetDlgCtrlID(), 
+				0, 
 				CTCN_SELCHANGING 
 			}, 
 			iOldSel, 
