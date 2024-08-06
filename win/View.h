@@ -13,18 +13,23 @@ typedef struct XBitmap
 	int   h;
 } XBitmap;
 
+#define ACTIVE_ITEM_ZORDER	0xFFFFFFFF
+#define XITEM_MAX_NUMBER	64
+#define TITLE_MAX_STRING	32
 typedef struct XItem XItem;
+
+#pragma pack(push, 1)
 struct XItem
 {
 	XItem* prev;
 	XItem* next;
+	U32 status;
 	U32 zorder;
-	LPWSTR	title;
+	WCHAR title[TITLE_MAX_STRING];
 	XBitmap* imgNormal;
-	XBitmap* imgHover;
-	XBitmap* imgPress;
 	XBitmap* imgActive;
 };
+#pragma pack(pop)
 
 /* fill the whole screen with one color */
 int DUI_ScreenClear(U32* dst, U32 size, U32 color)
@@ -60,6 +65,14 @@ class CView : public CWindowImpl<CView>
 	U32* m_screenBuff = nullptr;
 	U32  m_screenSize = 0;
 
+	XItem* m_ItemBank = nullptr;
+	XItem* m_ItemFree = nullptr;
+	XItem* m_ItemCurr = nullptr;
+	XItem* m_ItemList = nullptr;
+
+	int m_itemCount = 0;
+	int m_scrollOffset = 0;
+
 	RECT m_rectClient = { 0 };
 
 	UINT m_nDPI = 96;
@@ -68,16 +81,184 @@ class CView : public CWindowImpl<CView>
 public:
 	CView()
 	{
+		ATLASSERT(!m_ItemBank);
+		XItem* p;
+		XItem* q;
+		size_t bytes = XITEM_MAX_NUMBER * sizeof(XItem);
 
+		m_ItemBank = (XItem*)malloc(bytes);
+		ZeroMemory(m_ItemBank, bytes);
+
+		p = m_ItemBank;
+		for (int i = 0; i < XITEM_MAX_NUMBER - 1; i++)
+		{
+			q = p + 1;
+			p->next = q;
+			p = q;
+		}
+
+		m_ItemFree = m_ItemBank;
+
+		m_ItemList = GetFreeItem();
+		m_ItemCurr = m_ItemList;
+		if (m_ItemList)
+		{
+			m_itemCount = 1;
+			m_ItemList->zorder = 0xFFFFFFFF; // the active item
+		}
 	}
 
 	~CView()
 	{
+		if (m_ItemBank)
+		{
+			free(m_ItemBank);
+			m_ItemBank = nullptr;
+			m_ItemFree = nullptr;
+			m_ItemCurr = nullptr;
+			m_ItemList = nullptr;
+		}
+
 		if (nullptr != m_screenBuff)
 			VirtualFree(m_screenBuff, 0, MEM_RELEASE);
 
 		m_screenBuff = nullptr;
 		m_screenSize = 0;
+	}
+
+	XItem* GetFreeItem()
+	{
+		XItem* pI = m_ItemFree;
+		if (m_ItemFree)
+		{
+			m_ItemFree = m_ItemFree->next;
+		}
+
+		if (pI)
+		{
+			pI->next = nullptr;
+			pI->prev = nullptr;
+		}
+		return pI;
+	}
+
+	void FillLeftMost(BOOL active)
+	{
+
+	}
+
+	void FillRightMost(BOOL active)
+	{
+
+	}
+
+	void FillItemBody(XItem* pI)
+	{
+		ATLASSERT(pI);
+		if (pI->zorder != ACTIVE_ITEM_ZORDER)
+		{
+
+		}
+		else
+		{
+
+		}
+	}
+
+	void FillGap(XItem* curr, XItem* next)
+	{
+		ATLASSERT(curr);
+		ATLASSERT(next);
+
+		if (curr->zorder == ACTIVE_ITEM_ZORDER)
+		{
+			//file LAR0
+		}
+		else if(next->zorder == ACTIVE_ITEM_ZORDER)
+		{
+			//file L0RA
+		}
+		else
+		{
+			if (curr->zorder > next->zorder)
+			{
+				// fill L1R0
+			}
+			else if (curr->zorder < next->zorder)
+			{
+				// fill L0R1
+			}
+			else // curr->zorder == next->zorder
+			{
+				ATLASSERT(0);
+			}
+		}
+	}
+
+	void FillPlusButton()
+	{
+
+	}
+
+	void UpdateTabs()
+	{
+		XItem* p = m_ItemList;
+
+		while (p)
+		{
+			if (!p->prev) // p is pointing to the left-most node
+			{
+				if (p->zorder != ACTIVE_ITEM_ZORDER)
+					FillLeftMost(FALSE);
+				else
+					FillLeftMost(TRUE);
+			}
+
+			FillItemBody(p);
+
+			if (p->next)
+			{
+				FillGap(p, p->next);
+			}
+			else // p is pointing to the right-most node
+			{
+				if (p->zorder != ACTIVE_ITEM_ZORDER)
+					FillRightMost(FALSE);
+				else
+					FillRightMost(TRUE);
+			}
+			p = p->next;
+		}
+
+		FillPlusButton();
+	}
+
+	void SwitchItem(XItem* next)
+	{
+		U32 zleft = 0, zright = 0;
+		XItem* p;
+		ATLASSERT(m_ItemCurr);
+		ATLASSERT(m_ItemCurr->zorder == ACTIVE_ITEM_ZORDER);
+		ATLASSERT(next);
+
+		p = m_ItemCurr->prev;
+		if (p)
+		{
+			if(p->zorder != ACTIVE_ITEM_ZORDER)
+				zleft = p->zorder;
+
+		}
+		p = m_ItemCurr->next;
+		if (p)
+		{
+			if (p->zorder != ACTIVE_ITEM_ZORDER)
+				zright = p->zorder;
+		}
+
+		m_ItemCurr->zorder = std::max(zleft, zright) + 1;
+
+		next->zorder = ACTIVE_ITEM_ZORDER;
+		m_ItemCurr = next;
 	}
 
 public:
