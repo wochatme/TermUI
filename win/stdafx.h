@@ -4,12 +4,24 @@
 //
 
 #pragma once
-
-// Change these values to use different versions
-#define WINVER		0x0601
-#define _WIN32_WINNT	0x0601
-#define _WIN32_IE	0x0700
-#define _RICHEDIT_VER	0x0500
+// Including SDKDDKVer.h defines the highest available Windows platform.
+// If you wish to build your application for a previous Windows platform, include WinSDKVer.h and
+// set the _WIN32_WINNT macro to the platform you wish to support before including SDKDDKVer.h.
+#include <SDKDDKVer.h>
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+// Windows Header Files
+#include <windows.h>
+// C RunTime Header Files
+#include <stdio.h>
+#include <stdlib.h>
+#include <malloc.h>
+#include <memory.h>
+#include <tchar.h>
+#include <Mmsystem.h>
+#include <ctype.h>
+#include <time.h>
+#include <limits.h>
+#include <assert.h>
 
 // // Including SDKDDKVer.h defines the highest available Windows platform.
 // If you wish to build your application for a previous Windows platform, include WinSDKVer.h and
@@ -34,6 +46,9 @@
 extern CAppModule _Module;
 
 #include <atlwin.h>
+
+#include <mutex>
+#include <cmath>
 
 #include <d2d1.h>
 #include <d2d1_1.h>
