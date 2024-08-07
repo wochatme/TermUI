@@ -205,7 +205,7 @@ public:
 		switch (wParam & ~0xF) /* low 4 bits reserved to Windows */
 		{
 		case IDM_NEWTAB:
-			m_viewTab.AddNewTab();
+			m_viewTab.AddTab();
 			break;
 		default:
 			bHandled = FALSE;

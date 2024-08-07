@@ -35,7 +35,9 @@ typedef struct XBitmap
 #define TITLE_MAX_STRING	32
 typedef struct XItem XItem;
 
-#define XITEM_XBUTTON_HIT	0x00000001
+#define XITEM_XBUTTON_HIT		0x00000001
+#define XITEM_XBUTTON_HITLB		0x00000002
+
 //#pragma pack(push, 1)
 struct XItem
 {
@@ -350,20 +352,24 @@ public:
 			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, m_offsetX, screenH - H + 8);
 		}
 
-		bmp = nullptr;
-		if (pI->zorder == ACTIVE_ITEM_ZORDER)
+		if (m_itemCount > 1)
 		{
-			bmp = (pI->status & XITEM_XBUTTON_HIT) ? &m_xbmpXAA : &m_xbmpXA0;
-		}
-		else
-		{
-			bmp = (pI->status & XITEM_XBUTTON_HIT) ? &m_xbmpX0A : &m_xbmpX00;
-		}
+			bmp = nullptr;
+			if (pI->zorder == ACTIVE_ITEM_ZORDER)
+			{
+				bmp = (pI->status & XITEM_XBUTTON_HIT) ? &m_xbmpXAA : &m_xbmpXA0;
+			}
+			else
+			{
+				bmp = (pI->status & XITEM_XBUTTON_HIT) ? &m_xbmpX0A : &m_xbmpX00;
+			}
 
-		if (bmp)
-		{
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h,
-				m_offsetX + m_tabLength - bmp->w, screenH - H + 6);
+			if (bmp)
+			{
+				offset = (pI->status & XITEM_XBUTTON_HITLB) ? 1 : 0;
+				ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h,
+					m_offsetX + m_tabLength - bmp->w - 1 + offset, screenH - H + 6 + offset);
+			}
 		}
 	}
 
@@ -427,6 +433,7 @@ public:
 		XItem* p = m_itemHead;
 		m_offsetX = 0;
 
+		FillScreen(m_screenBuff, (U16)screenW, (U16)screenH, 0xFFCD7949);
 		ScreenStretchBlt(m_screenBuff, screenW, screenH, (U32*)bottomLine, 5, screenW, m_offsetX, screenH - 5);
 
 		while (p)
@@ -634,20 +641,29 @@ public:
 
 		if (q)
 		{
-			RECT xr = { 0 };
-			xr.right = q->rect.right;
-			xr.left = xr.right - m_xbmpXA0.w;
-			xr.top = q->rect.top + 6;
-			xr.bottom = xr.top + m_xbmpXA0.h;
-			if (::PtInRect(&xr, ptCursor))
+			bool hitXBtn = false;
+			if (m_itemCount > 1)
 			{
-				MessageBox(L"Are you sure to close this session?", L"Close Session", MB_YESNO);
-				q->status &= ~XITEM_XBUTTON_HIT;
-				Invalidate();
+				RECT xr = { 0 };
+				xr.right = q->rect.right;
+				xr.left = xr.right - m_xbmpXA0.w;
+				xr.top = q->rect.top + 6;
+				xr.bottom = xr.top + m_xbmpXA0.h;
+				if (::PtInRect(&xr, ptCursor))
+				{
+					hitXBtn = true;
+					q->status |= XITEM_XBUTTON_HITLB;
+					Invalidate();
+				}
 			}
-			else if(q != m_itemCurr)
+			if(q != m_itemCurr && !hitXBtn)
 			{
 				SwitchToTab(q, true);
+			}
+
+			if (::GetCapture() != m_hWnd)
+			{
+				SetCapture();
 			}
 		}
 
@@ -656,6 +672,9 @@ public:
 
 	LRESULT OnLButtonUp(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+		BOOL bNeedUpdate = FALSE;
+		XItem* p = m_itemHead;
+		XItem* q = nullptr;
 		POINT ptCursor = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 
 		if (::PtInRect(&m_btnPlus, ptCursor))
@@ -669,6 +688,59 @@ public:
 			m_bSetCursor = TRUE;
 			::SetCursor(m_hCursorHand);
 			::SendMessage(GetParent(), WM_NOTIFY, nmh.hdr.idFrom, (LPARAM)&nmh);
+		}
+
+		while (p)
+		{
+			if (p->status | XITEM_XBUTTON_HITLB)
+			{
+				p->status &= ~(XITEM_XBUTTON_HITLB);
+				bNeedUpdate = TRUE;
+			}
+			if (::PtInRect(&p->rect, ptCursor))
+			{
+				q = p;
+			}
+			p = p->next;
+		}
+
+		if (q)
+		{
+			bool hitXBtn = false;
+			if (m_itemCount > 1)
+			{
+				RECT xr = { 0 };
+				xr.right = q->rect.right;
+				xr.left = xr.right - m_xbmpXA0.w;
+				xr.top = q->rect.top + 6;
+				xr.bottom = xr.top + m_xbmpXA0.h;
+				if (::PtInRect(&xr, ptCursor))
+				{
+					q->status |= XITEM_XBUTTON_HITLB;
+					Invalidate();
+
+					int choice = MessageBox(L"Are you sure to close this session?", L"Close Session", MB_YESNO);
+					if (choice == IDYES)
+					{
+						DropTab(q);
+					}
+					else
+					{
+						q->status &= ~(XITEM_XBUTTON_HIT | XITEM_XBUTTON_HITLB);
+						Invalidate();
+					}
+				}
+			}
+		}
+
+		if (::GetCapture() == m_hWnd)
+		{
+			::ReleaseCapture();
+		}
+
+		if (bNeedUpdate)
+		{
+			Invalidate();
 		}
 
 		return 0;
@@ -852,8 +924,6 @@ public:
 				m_tablengthPrev = m_tabLength;
 				DoTextLayout();
 			}
-
-			FillScreen(m_screenBuff, (U16)w, (U16)h, 0xFFCD7949);
 		}
 		Invalidate();
 
@@ -1007,7 +1077,60 @@ public:
 
 	}
 
-	void AddNewTab()
+	void DropTab(XItem* item, bool bUpdate = true)
+	{
+		if (m_itemCount > 1)
+		{
+			ATLASSERT(item);
+			bool bActiveItem = (item->zorder = ACTIVE_ITEM_ZORDER);
+			XItem* curr = nullptr;
+			m_itemCount--;
+
+			XItem* prev = item->prev;
+			XItem* next = item->next;
+			if (prev)
+			{
+				prev->next = item->next;
+			}
+			else
+			{
+				ATLASSERT(m_itemHead == item);
+				m_itemHead = item->next;
+				ATLASSERT(m_itemHead);
+			}
+
+			if (next)
+			{
+				next->prev = item->prev;
+				curr = next;
+			}
+			else
+			{
+				ATLASSERT(m_itemTail == item);
+				m_itemTail = item->prev;
+				ATLASSERT(m_itemTail);
+				curr = m_itemTail;
+			}
+
+			m_itemCurr = curr;
+			if (bActiveItem)
+			{
+				ATLASSERT(m_itemCurr);
+				m_itemCurr->zorder = ACTIVE_ITEM_ZORDER;
+			}
+
+			ZeroMemory(item, sizeof(XItem));
+			item->next = m_itemFree;
+			m_itemFree = item;
+
+			if (bUpdate)
+			{
+				Invalidate();
+			}
+		}
+	}
+
+	void AddTab()
 	{
 		XItem* p = GetFreeItem();
 		if (p)
@@ -1073,7 +1196,7 @@ public:
 
 	LRESULT OnCmdEXE(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
-		AddNewTab();
+		AddTab();
 		return 0;
 	}
 
