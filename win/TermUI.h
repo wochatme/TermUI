@@ -10,13 +10,6 @@
 #define U32     uint32_t
 #define U64     uint64_t
 
-/* DUI_ALIGN() is only to be used to align on a power of 2 boundary */
-#define DUI_ALIGN(size, boundary)   (((size) + ((boundary) -1)) & ~((boundary) - 1))
-#define DUI_ALIGN_DEFAULT32(size)   DUI_ALIGN(size, 4)
-#define DUI_ALIGN_DEFAULT64(size)   DUI_ALIGN(size, 8)      /** Default alignment */
-#define DUI_ALIGN_PAGE(size)        DUI_ALIGN(size, (1<<16))
-#define DUI_ALIGN_TRUETYPE(size)    DUI_ALIGN(size, 64)    
-
 #define TAB_WINDOW_HEIGHT		32
 
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;

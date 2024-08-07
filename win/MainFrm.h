@@ -3,14 +3,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
-#define MESSAGE_DWM_HANDLER() \
-	{ \
-		LRESULT result = 0; \
-		BOOL bRet = DwmDefWindowProc(m_hWnd, uMsg, wParam, lParam, &result); \
-		if(bRet) \
-			return result; \
-	}
+#define IDM_NEWTAB		0x1010
 
 class CMainFrame : 
 	public CFrameWindowImpl<CMainFrame>, 
@@ -44,15 +37,16 @@ public:
 
 	BEGIN_MSG_MAP(CMainFrame)
 #if 0
-		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_NCCALCSIZE, OnNCCalcSize)
 #endif 
-		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
+		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
+		MESSAGE_HANDLER(WM_SYSCOMMAND, OnSysCommand)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
-		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
+		COMMAND_ID_HANDLER(ID_FILE_NEW, OnNewTab)
 		CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
@@ -80,6 +74,10 @@ public:
 		m_viewTAB.InsertItem(3, L"Ubuntu Linux", -1, L"Windows Subsystem for Linux", true);
 #endif 
 		m_viewTXT.Create(m_hWnd, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL);
+
+		HMENU m = GetSystemMenu(FALSE);
+		AppendMenu(m, MF_SEPARATOR, 0, 0);
+		AppendMenu(m, MF_ENABLED, IDM_NEWTAB, L"New Tab");
 
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
@@ -109,8 +107,15 @@ public:
 		NMHDR* pnmhdr = (NMHDR*)lParam;
 		if (pnmhdr)
 		{
-			if (pnmhdr->code == NM_CLICK)
+			if (pnmhdr->hwndFrom == m_viewTab)
+			{
+				if (pnmhdr->code == CTCN_PLUSBUTTON)
+				{
+					//m_viewTab.AddNewTab();
+					m_viewTab.ShowDropDownMenu();
+				}
 				return 0;
+			}
 		}
 		bHandled = FALSE;
 		return 0;
@@ -195,7 +200,22 @@ public:
 		return 0;
 	}
 
-	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	LRESULT OnSysCommand(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		switch (wParam & ~0xF) /* low 4 bits reserved to Windows */
+		{
+		case IDM_NEWTAB:
+			m_viewTab.AddNewTab();
+			break;
+		default:
+			bHandled = FALSE;
+			break;
+		}
+
+		return 0;
+	}
+
+	LRESULT OnNewTab(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		CAboutDlg dlg;
 		dlg.DoModal();

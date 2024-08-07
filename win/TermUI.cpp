@@ -11,15 +11,15 @@
 #include <atlgdi.h>
 
 #include "resource.h"
+#include "XBitmap.h"
 #include "TermUI.h"
-
+#include "WinDlg.h"
+#if 0
 #include "XTabCtl.h"
-
 #include "ViewTab.h"
+#endif 
 #include "ViewTxt.h"
 #include "View.h"
-
-#include "WinDlg.h"
 #include "MainFrm.h"
 
 /* Direct2D and DirectWrite factory */
