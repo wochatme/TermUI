@@ -97,6 +97,8 @@ typedef struct tagCTCHITTESTINFO
 	UINT flags;
 } CTCHITTESTINFO, * LPCTCHITTESTINFO;
 
+#define TAB_STATE_SCROLL	0x00000001
+
 class CView : public CWindowImpl<CView>
 {
 	U32* m_screenBuff = nullptr;
@@ -122,6 +124,9 @@ class CView : public CWindowImpl<CView>
 	XBitmap m_xbmpL0R1 = { 0 };
 	XBitmap m_xbmpL1R0 = { 0 };
 
+	XBitmap m_xbmpSL = { 0 };
+	XBitmap m_xbmpSR = { 0 };
+
 	XItem* m_itemBank = nullptr;
 	XItem* m_itemFree = nullptr;
 	XItem* m_itemCurr = nullptr;
@@ -134,13 +139,32 @@ class CView : public CWindowImpl<CView>
 	int m_itemCount = 0;
 	int m_itemIndex = 0;
 	int m_scrollOffset = 0;
-	int m_offsetX = 0;
-	int m_offsetY = 0;
+	int m_scrollMax = 0;
 	int m_tabLength = 0;
 	int m_tablengthPrev = 0;
 
 	RECT m_rectClient = { 0 };
 	RECT m_btnPlus = { 0 };
+
+	// Flags, internal state, etc.
+	//
+	//   3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1
+	//   1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
+	//  +-------+-------+-------+-------+---+-----------+---------------+
+	//  |  FUT  |  MO   |  MD   |  HT   |SR |    SD     |     FLAGS     |
+	//  +-------+-------+-------+-------+---+-----------+---------------+
+	//
+	//  FLAGS - boolean flags
+	//  SD - Scroll delta.  The number of pixels to move in a single scroll.
+	//       Valid values are 0-63 (the value is bit shifted to/from position).
+	//  SR - Scroll repeat speed.  Valid values are no-repeat,
+	//       slow repeat, normal repeat and fast repeat
+	//  HT - Current hot tracked item (if its a tab, then m_iHotItem is the hot tab item) 
+	//  MD - Item under mouse when mouse button down message was sent
+	//       but before mouse button up message is sent
+	//  MO - Item current under mouse cursor
+	//  FUT - Not used at this time, but reserved for the future.
+	DWORD m_dwState = 0;  // 32-bit long
 
 	UINT m_nDPI = 96;
 	float m_deviceScaleFactor = 1.f;
@@ -266,6 +290,9 @@ public:
 		bmp = &m_xbmpL0R1; bmp->data = (U32*)xbmpL1R0; bmp->id = id; bmp->w = w; bmp->h = h;
 		bmp = &m_xbmpL1R0; bmp->data = (U32*)xbmpL1R0; bmp->id = id; bmp->w = w; bmp->h = h;
 
+		w = 6; h = 12;
+		bmp = &m_xbmpSL; bmp->data = (U32*)xbmpScrollLeft; bmp->id = id; bmp->w = w; bmp->h = h;
+		bmp = &m_xbmpSR; bmp->data = (U32*)xbmpScrollRight; bmp->id = id; bmp->w = w; bmp->h = h;
 	}
 
 	~CView()
@@ -306,27 +333,27 @@ public:
 		return pI;
 	}
 
-	void FillLeftMost(BOOL active)
+	void FillLeftMost(BOOL active, int startPos)
 	{
 		int screenW, screenH;
 		XBitmap* bmp = active? &m_xbmpLA : &m_xbmpL0;
 
 		screenW = m_rectClient.right - m_rectClient.left;
 		screenH = m_rectClient.bottom - m_rectClient.top;
-		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, 0, screenH - bmp->h);
+		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
 	}
 
-	void FillRightMost(BOOL active)
+	void FillRightMost(BOOL active, int startPos)
 	{
 		int screenW, screenH;
 		XBitmap* bmp = active ? &m_xbmpRA : &m_xbmpR0;
 
 		screenW = m_rectClient.right - m_rectClient.left;
 		screenH = m_rectClient.bottom - m_rectClient.top;
-		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, m_offsetX, screenH - bmp->h);
+		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
 	}
 
-	void FillItemBody(XItem* pI)
+	void FillItemBody(XItem* pI, int startPos)
 	{
 		int screenW, screenH, W, H, offset = 0;
 		XBitmap* bmp;
@@ -338,10 +365,10 @@ public:
 		bmp = (pI->zorder != ACTIVE_ITEM_ZORDER) ? &m_xbmpT0 : &m_xbmpTA;
 		H = bmp->h;
 		ScreenStretchBlt(m_screenBuff, screenW, screenH,
-			bmp->data, bmp->h, m_tabLength, m_offsetX, screenH - H);
+			bmp->data, bmp->h, m_tabLength, startPos, screenH - H);
 
-		pI->rect.left = m_offsetX;
-		pI->rect.right = m_offsetX + m_tabLength;
+		pI->rect.left = startPos;
+		pI->rect.right = startPos + m_tabLength;
 		pI->rect.top = screenH - H;
 		pI->rect.bottom = pI->rect.top + m_xbmpT0.h;
 
@@ -349,7 +376,7 @@ public:
 		{
 			bmp = pI->imgNormal;
 			offset = (H - bmp->h) >> 1;
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, m_offsetX, screenH - H + 8);
+			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - H + 8);
 		}
 
 		if (m_itemCount > 1)
@@ -368,7 +395,7 @@ public:
 			{
 				offset = (pI->status & XITEM_XBUTTON_HITLB) ? 1 : 0;
 				ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h,
-					m_offsetX + m_tabLength - bmp->w - 1 + offset, screenH - H + 6 + offset);
+					startPos + m_tabLength - bmp->w - 1 + offset, screenH - H + 6 + offset);
 			}
 		}
 	}
@@ -412,66 +439,60 @@ public:
 		}
 	}
 
-	void FillPlusButton()
-	{
-
-	}
-
 	void UpdateTabs()
 	{
-		const unsigned int bottomLine[1 * 5] =
-		{
-		0xFF8C4F2E,
-		0xFFF9F8F9,
-		0xFFF9F9F8,
-		0xFFF8F7F7,
-		0xFFF8F7F7
-		};
-
+		BOOL bActive = FALSE;
+		int offsetX;
 		int screenW = m_rectClient.right - m_rectClient.left;
 		int screenH = m_rectClient.bottom - m_rectClient.top;
-		XItem* p = m_itemHead;
-		m_offsetX = 0;
+		XItem* p;
 
-		FillScreen(m_screenBuff, (U16)screenW, (U16)screenH, 0xFFCD7949);
-		ScreenStretchBlt(m_screenBuff, screenW, screenH, (U32*)bottomLine, 5, screenW, m_offsetX, screenH - 5);
+		ScreenStretchBlt(m_screenBuff, screenW, screenH, 
+			(U32*)xbmpBKG, TAB_WINDOW_HEIGHT, screenW, 0, 0);
 
+		offsetX = m_scrollOffset;
+		p = m_itemHead;
 		while (p)
 		{
 			if (!p->prev) // p is pointing to the left-most node
 			{
-				if (p->zorder != ACTIVE_ITEM_ZORDER)
-					FillLeftMost(FALSE);
-				else
-					FillLeftMost(TRUE);
-				m_offsetX += m_xbmpLA.w;
+				bActive = (p->zorder == ACTIVE_ITEM_ZORDER) ? TRUE : FALSE;
+				FillLeftMost(bActive, offsetX);
+				offsetX += m_xbmpLA.w;
 			}
 
-			FillItemBody(p);
-			m_offsetX += m_tabLength;
+			FillItemBody(p, offsetX);
+			offsetX += m_tabLength;
 
 			if (p->next)
 			{
-				FillGap(p, p->next, m_offsetX);
-				m_offsetX += m_xbmpL0RA.w;
+				FillGap(p, p->next, offsetX);
+				offsetX += m_xbmpL0RA.w;
 			}
 			else // p is pointing to the right-most node
 			{
-				if (p->zorder != ACTIVE_ITEM_ZORDER)
-					FillRightMost(FALSE);
-				else
-					FillRightMost(TRUE);
-				m_offsetX += m_xbmpRA.w;
+				bActive = (p->zorder == ACTIVE_ITEM_ZORDER) ? TRUE : FALSE;
+				FillRightMost(bActive, offsetX);
+				offsetX += m_xbmpRA.w;
 
-				m_btnPlus.left  = m_offsetX - 20;
-				m_btnPlus.right = m_offsetX - 12;
+				m_btnPlus.left  = offsetX - 20;
+				m_btnPlus.right = offsetX - 12;
 				m_btnPlus.bottom = 20;
 				m_btnPlus.top = 12;
 			}
 			p = p->next;
 		}
 
-		FillPlusButton();
+		if (m_dwState & TAB_STATE_SCROLL)
+		{
+			XBitmap* bmp = &m_xbmpSL;
+			int offsetX = screenW - SPECIAL_LENGTH + 8;
+			int offsetY = (screenH - bmp->h) >> 1;
+			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
+			bmp = &m_xbmpSR;
+			offsetX = screenW - SPECIAL_LENGTH + 22;
+			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
+		}
 	}
 
 	void SwitchItem(XItem* next)
@@ -501,7 +522,7 @@ public:
 		next->zorder = ACTIVE_ITEM_ZORDER;
 		m_itemCurr = next;
 	}
-
+#if 0
 	int FillScreen(U32* dst, U16 width, U16 height, U32 color)
 	{
 		// because using pointer 64 bit is 2 times faster than pointer 32 bit
@@ -526,7 +547,7 @@ public:
 		}
 		return 0;
 	}
-
+#endif 
 	int ScreenDrawRect(U32* dst, int w, int h, U32* src, int sw, int sh, int dx, int dy)
 	{
 		if (dst && src)
@@ -924,7 +945,21 @@ public:
 				m_tablengthPrev = m_tabLength;
 				DoTextLayout();
 			}
+
+			sumlength = tablength * m_itemCount + exalength;
+			if (sumlength > w - SPECIAL_LENGTH)
+			{
+				m_scrollMax = m_scrollOffset = (w - SPECIAL_LENGTH) - sumlength;
+				if (m_scrollOffset < 0)
+					m_dwState |= TAB_STATE_SCROLL;
+			}
+			else
+			{
+				m_scrollMax = m_scrollOffset = 0;
+				m_dwState &= ~(TAB_STATE_SCROLL);
+			}
 		}
+
 		Invalidate();
 
 		return 0;
@@ -1063,6 +1098,8 @@ public:
 
 	void ShowDropDownMenu()
 	{
+		AddTab();
+#if 0
 		POINT cursorpos = {};
 		GetCursorPos(&cursorpos);
 
@@ -1074,7 +1111,7 @@ public:
 		TrackPopupMenu(hMenu,TPM_LEFTALIGN | TPM_TOPALIGN | TPM_VERTICAL,
 			cursorpos.x, cursorpos.y + 10,
 			0, m_hWnd, NULL);
-
+#endif 
 	}
 
 	void DropTab(XItem* item, bool bUpdate = true)
@@ -1122,6 +1159,38 @@ public:
 			ZeroMemory(item, sizeof(XItem));
 			item->next = m_itemFree;
 			m_itemFree = item;
+
+			{
+				int w = m_rectClient.right - m_rectClient.left;
+				int exalength = m_xbmpLA.w + m_xbmpRA.w + (m_itemCount - 1) * m_xbmpL0RA.w;
+				int sumlength = w - SPECIAL_LENGTH;
+				int tablength = (sumlength - exalength) / m_itemCount;
+
+				if (tablength > TAB_MAX_LENGTH)
+					tablength = TAB_MAX_LENGTH;
+				if (tablength < TAB_MIN_LENGTH)
+					tablength = TAB_MIN_LENGTH;
+
+				m_tabLength = tablength;
+				if (m_tablengthPrev != m_tabLength)
+				{
+					m_tablengthPrev = m_tabLength;
+					DoTextLayout();
+				}
+
+				sumlength = tablength * m_itemCount + exalength;
+				if (sumlength > w - SPECIAL_LENGTH)
+				{
+					m_scrollMax = m_scrollOffset = (w - SPECIAL_LENGTH) - sumlength;
+					if (m_scrollOffset < 0)
+						m_dwState |= TAB_STATE_SCROLL;
+				}
+				else
+				{
+					m_scrollMax = m_scrollOffset = 0;
+					m_dwState &= ~(TAB_STATE_SCROLL);
+				}
+			}
 
 			if (bUpdate)
 			{
@@ -1187,6 +1256,19 @@ public:
 				else
 				{
 					DoItemTextLayout(m_itemCurr);
+				}
+
+				sumlength = tablength * m_itemCount + exalength;
+				if (sumlength > w - SPECIAL_LENGTH)
+				{
+					m_scrollMax = m_scrollOffset = (w - SPECIAL_LENGTH) - sumlength;
+					if (m_scrollOffset < 0)
+						m_dwState |= TAB_STATE_SCROLL;
+				}
+				else
+				{
+					m_scrollMax = m_scrollOffset = 0;
+					m_dwState &= ~(TAB_STATE_SCROLL);
 				}
 			}
 
