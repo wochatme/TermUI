@@ -26,8 +26,8 @@ typedef struct XBitmap
 #define IDM_COMMAND_EXE		100
 #define IDM_POWER_SHELL		101
 
-#define TAB_MAX_LENGTH		256
-#define TAB_MIN_LENGTH		64
+#define TAB_MAX_LENGTH		512
+#define TAB_MIN_LENGTH		256
 #define SPECIAL_LENGTH		64
 
 #define ACTIVE_ITEM_ZORDER	0xFFFFFFFF
@@ -103,6 +103,9 @@ class CView : public CWindowImpl<CView>
 {
 	U32* m_screenBuff = nullptr;
 	U32  m_screenSize = 0;
+
+	U32* m_screenWin0 = nullptr;
+	U32* m_screenWin1 = nullptr;
 
 	XBitmap m_xbmpLA = { 0 };
 	XBitmap m_xbmpL0 = { 0 };
@@ -340,7 +343,7 @@ public:
 
 		screenW = m_rectClient.right - m_rectClient.left;
 		screenH = m_rectClient.bottom - m_rectClient.top;
-		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
+		ScreenDrawRect(m_screenWin0, screenW - SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
 	}
 
 	void FillRightMost(BOOL active, int startPos)
@@ -350,7 +353,7 @@ public:
 
 		screenW = m_rectClient.right - m_rectClient.left;
 		screenH = m_rectClient.bottom - m_rectClient.top;
-		ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
+		ScreenDrawRect(m_screenWin0, screenW - SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
 	}
 
 	void FillItemBody(XItem* pI, int startPos)
@@ -364,7 +367,7 @@ public:
 
 		bmp = (pI->zorder != ACTIVE_ITEM_ZORDER) ? &m_xbmpT0 : &m_xbmpTA;
 		H = bmp->h;
-		ScreenStretchBlt(m_screenBuff, screenW, screenH,
+		ScreenStretchBlt(m_screenWin0, screenW - SPECIAL_LENGTH, screenH,
 			bmp->data, bmp->h, m_tabLength, startPos, screenH - H);
 
 		pI->rect.left = startPos;
@@ -376,7 +379,7 @@ public:
 		{
 			bmp = pI->imgNormal;
 			offset = (H - bmp->h) >> 1;
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - H + 8);
+			ScreenDrawRect(m_screenWin0, screenW - SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - H + 8);
 		}
 
 		if (m_itemCount > 1)
@@ -394,7 +397,7 @@ public:
 			if (bmp)
 			{
 				offset = (pI->status & XITEM_XBUTTON_HITLB) ? 1 : 0;
-				ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h,
+				ScreenDrawRect(m_screenWin0, screenW - SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h,
 					startPos + m_tabLength - bmp->w - 1 + offset, screenH - H + 6 + offset);
 			}
 		}
@@ -435,7 +438,7 @@ public:
 			int screenW, screenH;
 			screenW = m_rectClient.right - m_rectClient.left;
 			screenH = m_rectClient.bottom - m_rectClient.top;
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
+			ScreenDrawRect(m_screenWin0, screenW - SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, startPos, screenH - bmp->h);
 		}
 	}
 
@@ -447,8 +450,11 @@ public:
 		int screenH = m_rectClient.bottom - m_rectClient.top;
 		XItem* p;
 
-		ScreenStretchBlt(m_screenBuff, screenW, screenH, 
-			(U32*)xbmpBKG, TAB_WINDOW_HEIGHT, screenW, 0, 0);
+		ScreenStretchBlt(m_screenWin0, screenW - SPECIAL_LENGTH, screenH,
+			(U32*)xbmpBKG, TAB_WINDOW_HEIGHT, screenW - SPECIAL_LENGTH, 0, 0);
+
+		ScreenStretchBlt(m_screenWin1, SPECIAL_LENGTH, screenH,
+			(U32*)xbmpBKG, TAB_WINDOW_HEIGHT, SPECIAL_LENGTH, 0, 0);
 
 		offsetX = m_scrollOffset;
 		p = m_itemHead;
@@ -486,15 +492,15 @@ public:
 		if (m_dwState & TAB_STATE_SCROLL)
 		{
 			XBitmap* bmp = &m_xbmpSL;
-			int offsetX = screenW - SPECIAL_LENGTH + 8;
+			int offsetX = 8;
 			int offsetY = (screenH - bmp->h) >> 1;
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
+			ScreenDrawRect(m_screenWin1, SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
 			bmp = &m_xbmpSR;
-			offsetX = screenW - SPECIAL_LENGTH + 22;
-			ScreenDrawRect(m_screenBuff, screenW, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
+			offsetX = 22;
+			ScreenDrawRect(m_screenWin1, SPECIAL_LENGTH, screenH, bmp->data, bmp->w, bmp->h, offsetX, offsetY);
 		}
 	}
-
+#if 0
 	void SwitchItem(XItem* next)
 	{
 		U32 zleft = 0, zright = 0;
@@ -522,65 +528,70 @@ public:
 		next->zorder = ACTIVE_ITEM_ZORDER;
 		m_itemCurr = next;
 	}
-#if 0
-	int FillScreen(U32* dst, U16 width, U16 height, U32 color)
-	{
-		// because using pointer 64 bit is 2 times faster than pointer 32 bit
-		// so we use pointer 64 to speed up the copying
-		if (dst)
-		{
-			U32 i, half_size, size;
-			U64* p64 = (U64*)dst;
-			U64 newColor = (((U64)(color)) << 32) | ((U64)color);
-
-			size = width * height;
-			half_size = (size >> 1);
-
-			for (i = 0; i < half_size; i++)
-				*p64++ = newColor;
-
-			if (1 & size)  // fix the last pixel if the whole size is not even number
-			{
-				U32* p32 = dst + (size - 1);
-				*p32 = color;
-			}
-		}
-		return 0;
-	}
 #endif 
 	int ScreenDrawRect(U32* dst, int w, int h, U32* src, int sw, int sh, int dx, int dy)
 	{
-		if (dst && src)
+		if (dst && src && w >= sw && h >= sh)
 		{
-			U32* startDST;
-			U32* startSRC;
-			U32* p;
-			int SW, SH;
+			int srcW = sw;
+			int srcH = sh;
 
-			if (dx >= w || dy >= h) // not in the scope
-				return 1;
+			if (dx < 0) 
+				srcW = dx + sw;
+			if (dy < 0) 
+				srcH = dy + sh;
 
-			if (dy < 0)
+			if (dx < w && dy < h && srcW > 0 && srcH > 0)
 			{
-				src += ((-dy) * sw);
-				sh += dy;
-				dy = 0;
-			}
+				U32* startDST = nullptr;
+				U32* startSRC = nullptr;
 
-			SW = sw;
-			SH = sh;
+				if (dx + sw > w) 
+					srcW = w - dx;
+				if (dy + sh > h) 
+					srcH = h - dy;
 
-			if (sw + dx > w)
-				SW = w - dx;
-			if (sh + dy > h)
-				SH = h - dy;
+				if (dy < 0)
+				{
+					if (dx < 0)
+					{
+						startDST = dst;
+						startSRC = src + (-dy * sw) - dx;
+					}
+					else
+					{
+						startDST = dst + dx;
+						startSRC = src + (-dy * sw);
+					}
+				}
+				else
+				{
+					if (dx < 0)
+					{
+						startDST = dst + dy * w;
+						startSRC = src - dx;
+					}
+					else
+					{
+						startDST = dst + dy * w + dx;
+						startSRC = src;
+					}
+				}
 
-			for (int i = 0; i < SH; i++)
-			{
-				startDST = dst + w * (dy + i) + dx;
-				startSRC = src + i * sw;
-				for (int k = 0; k < SW; k++)
-					*startDST++ = *startSRC++;
+				if (startDST && startSRC)
+				{
+					int i, j;
+					U32* p;
+					U32* q;
+
+					for (i = 0; i < srcH; i++)
+					{
+						p = startDST + i * w;
+						q = startSRC + i * sw;
+						for (j = 0; j < srcW; j++)
+							*p++ = *q++;
+					}
+				}
 			}
 		}
 		return 0;
@@ -588,34 +599,56 @@ public:
 
 	int ScreenStretchBlt(U32* dst, int w, int h, U32* src, int sh, int len, int dx, int dy)
 	{
-		if (dst && src)
+		if (dst && src && h >= sh)
 		{
-			U32* startDST;
-			U32* startSRC;
-			U32* p;
-			int SW, SH;
+			int offsetX = (dx < 0) ? dx : 0;
+			int offsetY = (dy < 0) ? dy : 0;
+			int srcW = len + offsetX;
+			int srcH = sh + offsetY;
 
-			if (dx < 0 || dx >= w || dy >= h) // not in the scope
-				return 1;
+			ATLASSERT(w > 0);
 
-			if (dy < 0)
+			if (dx < w && dy < h && srcW > 0 && srcH > 0)
 			{
-				src += ((-dy) * 1);
-				sh += dy;
-				dy = 0;
-			}
+				U32* startDST = nullptr;
+				U32* startSRC = nullptr;
 
-			if (dx + len > w)
-				len = w - dx;
+				if (dx + len > w)
+					srcW = w - dx;
+				if (dy + sh > h)
+					srcH = h - dy;
+				if (srcW > w)
+					srcW = w;
 
-			for (int i = 0; i < sh; i++)
-			{
-				startDST = dst + w * (dy + i) + dx;
-				startSRC = src + i;
-				for (int k = 0; k < len; k++)
-					*startDST++ = *startSRC;
+				startSRC = src - offsetY;
+				if (dy < 0)
+				{
+					startDST = (dx < 0) ? dst : dst + dx;
+				}
+				else
+				{
+					startDST = dst + dy * w;
+					if (dx > 0)
+						startDST += dx;
+				}
+
+				if (startDST && startSRC)
+				{
+					int i, j;
+					U32* p;
+					U32* q;
+
+					for (i = 0; i < srcH; i++)
+					{
+						p = startDST + i * w;
+						q = startSRC + i;
+						for (j = 0; j < srcW; j++)
+							*p++ = *q;
+					}
+				}
 			}
 		}
+
 		return 0;
 	}
 
@@ -913,53 +946,58 @@ public:
 		int w = m_rectClient.right - m_rectClient.left;
 		int h = m_rectClient.bottom - m_rectClient.top;
 
-		if (nullptr != m_screenBuff)
+		if (w > SPECIAL_LENGTH && h > 0)
 		{
-			VirtualFree(m_screenBuff, 0, MEM_RELEASE);
-		}
-		m_screenBuff = nullptr;
-		m_screenSize = 0;
-
-		m_screenSize = DUI_ALIGN_PAGE(w * h * sizeof(U32));
-		ATLASSERT(m_screenSize >= (w * h * sizeof(U32)));
-		if (m_screenSize)
-		{
-			m_screenBuff = (U32*)VirtualAlloc(NULL, m_screenSize, MEM_COMMIT, PAGE_READWRITE);
-		}
-
-		if (m_screenBuff)
-		{
-			ATLASSERT(m_itemCount > 0);
-			int exalength = m_xbmpLA.w + m_xbmpRA.w + (m_itemCount - 1) * m_xbmpL0RA.w;
-			int sumlength = w - SPECIAL_LENGTH;
-			int tablength = (sumlength - exalength) / m_itemCount;
-
-			if (tablength > TAB_MAX_LENGTH)
-				tablength = TAB_MAX_LENGTH;
-			if(tablength < TAB_MIN_LENGTH)
-				tablength = TAB_MIN_LENGTH;
-
-			m_tabLength = tablength;
-			if (m_tablengthPrev != m_tabLength)
+			if (nullptr != m_screenBuff)
 			{
-				m_tablengthPrev = m_tabLength;
-				DoTextLayout();
+				VirtualFree(m_screenBuff, 0, MEM_RELEASE);
+			}
+			m_screenBuff = nullptr;
+			m_screenSize = 0;
+
+			m_screenSize = DUI_ALIGN_PAGE(w * h * sizeof(U32));
+			ATLASSERT(m_screenSize >= (w * h * sizeof(U32)));
+			if (m_screenSize)
+			{
+				m_screenBuff = (U32*)VirtualAlloc(NULL, m_screenSize, MEM_COMMIT, PAGE_READWRITE);
 			}
 
-			sumlength = tablength * m_itemCount + exalength;
-			if (sumlength > w - SPECIAL_LENGTH)
+			if (m_screenBuff)
 			{
-				m_scrollMax = m_scrollOffset = (w - SPECIAL_LENGTH) - sumlength;
-				if (m_scrollOffset < 0)
-					m_dwState |= TAB_STATE_SCROLL;
-			}
-			else
-			{
-				m_scrollMax = m_scrollOffset = 0;
-				m_dwState &= ~(TAB_STATE_SCROLL);
+				m_screenWin0 = m_screenBuff;
+				m_screenWin1 = m_screenBuff + (w - SPECIAL_LENGTH) * h;
+
+				ATLASSERT(m_itemCount > 0);
+				int exalength = m_xbmpLA.w + m_xbmpRA.w + (m_itemCount - 1) * m_xbmpL0RA.w;
+				int sumlength = w - SPECIAL_LENGTH;
+				int tablength = (sumlength - exalength) / m_itemCount;
+
+				if (tablength > TAB_MAX_LENGTH)
+					tablength = TAB_MAX_LENGTH;
+				if (tablength < TAB_MIN_LENGTH)
+					tablength = TAB_MIN_LENGTH;
+
+				m_tabLength = tablength;
+				if (m_tablengthPrev != m_tabLength)
+				{
+					m_tablengthPrev = m_tabLength;
+					DoTextLayout();
+				}
+
+				sumlength = tablength * m_itemCount + exalength;
+				if (sumlength > w - SPECIAL_LENGTH)
+				{
+					m_scrollMax = m_scrollOffset = (w - SPECIAL_LENGTH) - sumlength;
+					if (m_scrollOffset < 0)
+						m_dwState |= TAB_STATE_SCROLL;
+				}
+				else
+				{
+					m_scrollMax = m_scrollOffset = 0;
+					m_dwState &= ~(TAB_STATE_SCROLL);
+				}
 			}
 		}
-
 		Invalidate();
 
 		return 0;
@@ -1032,33 +1070,57 @@ public:
 			//m_pD2DRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::LightBlue));
 			if (m_screenBuff)
 			{
-				ID2D1Bitmap* pBitmap = nullptr;
-				int w = m_rectClient.right - m_rectClient.left;
+				ID2D1Bitmap* pBitmap0 = nullptr;
+				ID2D1Bitmap* pBitmap1 = nullptr;
+				int w = m_rectClient.right - m_rectClient.left - SPECIAL_LENGTH;
 				int h = m_rectClient.bottom - m_rectClient.top;
-
 				UpdateTabs();
 
-				hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_screenBuff, (w << 2),
-					D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)), &pBitmap);
+				D2D1_RECT_F rect = D2D1::RectF(
+					static_cast<FLOAT>(m_rectClient.left),
+					static_cast<FLOAT>(m_rectClient.top),
+					static_cast<FLOAT>(m_rectClient.right),
+					static_cast<FLOAT>(m_rectClient.bottom)
+				);
 
-				if (S_OK == hr && nullptr != pBitmap)
+				m_pD2DRenderTarget->PushAxisAlignedClip(rect, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+
+				hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_screenWin0, (w << 2),
+					D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)), &pBitmap0);
+
+				if (S_OK == hr && nullptr != pBitmap0)
 				{
 					D2D1_RECT_F rect = D2D1::RectF(
 						static_cast<FLOAT>(m_rectClient.left),
+						static_cast<FLOAT>(m_rectClient.top),
+						static_cast<FLOAT>(m_rectClient.right - SPECIAL_LENGTH),
+						static_cast<FLOAT>(m_rectClient.bottom)
+					);
+
+					m_pD2DRenderTarget->DrawBitmap(pBitmap0, &rect); // do the real draw
+					ReleaseUnknown(pBitmap0);
+
+					DrawTabText();
+				}
+
+				hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(SPECIAL_LENGTH, h), m_screenWin1, (SPECIAL_LENGTH << 2),
+					D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)), &pBitmap1);
+
+				if (S_OK == hr && nullptr != pBitmap1)
+				{
+					D2D1_RECT_F rect = D2D1::RectF(
+						static_cast<FLOAT>(m_rectClient.right - SPECIAL_LENGTH),
 						static_cast<FLOAT>(m_rectClient.top),
 						static_cast<FLOAT>(m_rectClient.right),
 						static_cast<FLOAT>(m_rectClient.bottom)
 					);
 
-					m_pD2DRenderTarget->PushAxisAlignedClip(rect, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-
-					m_pD2DRenderTarget->DrawBitmap(pBitmap, &rect); // do the real draw
-					ReleaseUnknown(pBitmap);
-					m_pD2DRenderTarget->PopAxisAlignedClip();
+					m_pD2DRenderTarget->DrawBitmap(pBitmap1, &rect); // do the real draw
+					ReleaseUnknown(pBitmap1);
 				}
-				DrawTabText();
-			}
 
+				m_pD2DRenderTarget->PopAxisAlignedClip();
+			}
 			hr = m_pD2DRenderTarget->EndDraw();
 			////////////////////////////////////////////////////////////////////////////////////////////////////
 			if (FAILED(hr) || D2DERR_RECREATE_TARGET == hr)
@@ -1066,13 +1128,13 @@ public:
 				ReleaseUnknown(m_pD2DRenderTarget);
 			}
 		}
-
 		EndPaint(&ps);
 		return 0;
 	}
 
 	void SwitchToTab(XItem* newItem, bool bUpdate = false)
 	{
+		int gap, w;
 		int zleft = 0;
 		int zright = 0;
 
@@ -1089,6 +1151,23 @@ public:
 
 		m_itemCurr = newItem;
 		m_itemCurr->zorder = ACTIVE_ITEM_ZORDER; // the active item
+
+		if (newItem->rect.left < 0)
+		{
+			gap = m_xbmpLA.w << 1;
+			m_scrollOffset += (gap - newItem->rect.left);
+		}
+
+		w = m_rectClient.right - m_rectClient.left - SPECIAL_LENGTH;
+		if (newItem->rect.right > w)
+		{
+			gap = m_xbmpLAR0.w << 1;
+			if(!newItem->next)
+				gap = m_xbmpRA.w << 1;
+			m_scrollOffset -= (newItem->rect.right + gap - w);
+			if (m_scrollOffset < m_scrollMax)
+				m_scrollOffset = m_scrollMax;
+		}
 
 		if (bUpdate)
 		{
